@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+"""A python """
+# BSD 3-Clause License
+#
+# Copyright (c) 2012, © Badassops LLC / Luc Suryo
+# All rights reserved.
+#
+#*
+#* File        :   check-memory-osx
+#*
+#* Description    :   script to check the memory usage of an OSX system, use for monitoring
+#*
+#* Author    :    Luc Suryo <luc@badassops.com>
+#*
+#* Version    :    0.3
+#*
+#* Date        :    Mar 17, 2019
+#*
+#* History    :
+#*        Date:          Author:        Info:
+#*        Aug 17, 2012   LIS        First Release
+#*        Dec 20, 2016   LIS        make sure it works with python3
+#*        Mar 7, 2019    LIS        added colors :)
+#*{% raw %}
+
+import signal
+import sys
+import os
+import time
+import argparse
+import socket
+import subprocess
+
+from time import time, sleep, strftime
+
+__progname__ = os.path.basename(__file__)
+__author__      = 'Luc Suryo'
+__copyright__   = 'Copyright 2012 - ' + strftime('%Y') + ' © Badassops LLC'
+__license__     = 'License 3-Clause BSD, https://opensource.org/licenses/BSD-3-Clause ♥'
+__version__     = '0.3'
+__email__       = '<luc@badassops.com>'
+__info__        = f'{__version__}\n{__copyright__}\nLicense {__license__}\n\nWritten by {__author__} {__email__}\n'
+__description__ = 'nagios check script to check the memory usage of an OSX system'
+__usage_txt__   = '<--critical value in precent>'
+__host__        = socket.gethostname().split('.', 1)[0]
+
+# colors
+colorOFF    = '\033[0m'
+colorRed    = '\033[1;31m'
+colorGreen  = '\033[1;32m'
+colorYellow = '\033[1;33m'
+colorBlue   = '\033[1;34m'
+colorPurple = '\033[1;35m'
+
+# Defaults in seconds
+DEFAULT_CRITICAL = 95
+
+# Help messages
+_HELP_CRITICAL = f'default critical memory usage in precent, default to {DEFAULT_CRITICAL}'
+
+# use variable
+command_p1 = ['top', '-l',  '1']
+command_p2 = ['grep', '-E', '^Phys']
+command_p3 = ['sysctl', 'hw.memsize']
+
+def signal_handler(signum, frame):
+    """Signal/interrupts handler
+        @param  signum  {int}       The interrupt ID according to signal.h.
+        @param  frame   {string}    Memory frame where the interrupted was called.
+    """
+    DEBUG = 0
+    print(f'\n\n{colorYellow}Process aborted due to received an interrupt: {signum} {colorOFF}')
+
+    if DEBUG == 1:
+        print (f'\n\n{colorYellow}Frame: {frame}{colorOFF}')
+    sys.exit(128 + signum)
+
+def offset_check(critical):
+    """
+        @param    critical : critical level
+    """
+    try:
+        cmd_p1 = subprocess.Popen(command_p1, stdout=subprocess.PIPE)
+        cmd_p2 = subprocess.Popen(command_p2, stdin=cmd_p1.stdout, stdout=subprocess.PIPE)
+        cmd_p1.stdout.close()
+        output, err = cmd_p2.communicate()
+        total_memory = subprocess.run(command_p3, capture_output=True, text=True, check=True)
+        # convert to KB
+        mem_usage = int(output.decode('utf-8').split()[1].replace('G', '')) * 1024
+        mem_system = int(total_memory.stdout.split()[1]) / (1024 * 1024)
+    except Exception as err:
+        print(f'Unknown error: {err}')
+        sys.exit(3)
+
+    usage_precent = round((mem_usage/mem_system) * 100)
+
+    if usage_precent > critical:
+        print(f'CRITICAL - {__host__} server memory usage is {usage_precent}% |' +
+              f'memory={usage_precent};;{critical};')
+        sys.exit(2)
+    else:
+        print(f'OK - {__host__} server memory usage is {usage_precent}% |' +
+              f'offset={usage_precent};;{critical};')
+        sys.exit(0)
+
+if __name__ == "__main__":
+    # Install signal/interrupts handler, we capture only SIGHUP, SIGINT and TERM
+    signal.signal(signal.SIGHUP, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    # Process giving arguments
+    parser = argparse.ArgumentParser(usage = __usage_txt__, description = __description__,
+          formatter_class = argparse.RawDescriptionHelpFormatter, conflict_handler='resolve')
+
+    parser.add_argument('-v', '--version', action = 'version', version = __info__)
+
+    parser.add_argument('-c', '--critical', action = 'store', dest = 'critical',
+          default = DEFAULT_CRITICAL, help = _HELP_CRITICAL)
+
+    options = parser.parse_args()
+    offset_check(float(options.critical))
+#{%- endraw %}
