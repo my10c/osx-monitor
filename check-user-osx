@@ -95,7 +95,7 @@ def process_check(given_options):
         user_list = []
 
         for line in data:
-            if len(line.split()) == 5:
+            if len(line.split()) >= 5:
                 user_list.append(line.split()[0])
                 cnt += 1
 
