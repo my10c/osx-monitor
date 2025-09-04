@@ -6,9 +6,9 @@
 # All rights reserved.
 #
 #*
-#* File        :   check-memory-osx
+#* File        :   check-user-osx
 #*
-#* Description    :   script to check the memory usage of an OSX system, use for monitoring
+#* Description    :   script to check if the given user is on console or how many are ssh into the mac
 #*
 #* Author    :    Luc Suryo <luc@badassops.com>
 #*
@@ -31,6 +31,7 @@ import time
 import argparse
 import socket
 import subprocess
+import io
 
 from time import time, sleep, strftime
 
@@ -41,8 +42,8 @@ __license__     = 'License 3-Clause BSD, https://opensource.org/licenses/BSD-3-C
 __version__     = '0.4'
 __email__       = '<luc@badassops.com>'
 __info__        = f'{__version__}\n{__copyright__}\nLicense {__license__}\n\nWritten by {__author__} {__email__}\n'
-__description__ = 'nagios check script to check the memory usage of an OSX system'
-__usage_txt__   = '<--critical value in precent>'
+__description__ = 'Sscript to check if the given user is on console or how many are ssh into the mac'
+__usage_txt__   = '<--ssh ssh count> <--user username>'
 __host__        = socket.gethostname().split('.', 1)[0]
 
 # colors
@@ -54,15 +55,13 @@ colorBlue   = '\033[1;34m'
 colorPurple = '\033[1;35m'
 
 # Defaults in seconds
-DEFAULT_CRITICAL = 95
+DEFAULT_COUNT = 0
 
 # Help messages
-_HELP_CRITICAL = f'critical memory usage in precent, default to {DEFAULT_CRITICAL}'
+_HELP_SSH    = f'user logged via ssh count, default to {DEFAULT_COUNT}'
+_HELP_USER   = 'username to be checked if logged via console'
 
 # use variable
-command_p1 = ['top', '-l',  '1']
-command_p2 = ['grep', '-E', '^Phys']
-command_p3 = ['sysctl', 'hw.memsize']
 
 def signal_handler(signum, frame):
     """Signal/interrupts handler
@@ -76,33 +75,48 @@ def signal_handler(signum, frame):
         print (f'\n\n{colorYellow}Frame: {frame}{colorOFF}')
     sys.exit(128 + signum)
 
-def memory_check(critical):
+def process_check(given_options):
     """
-        @param    critical : critical level
+        @param    given_options : dict with the below keys
+
+        @param    ssh   : count users allowed logged via ssh
+        @param    user  : user name logged via console
     """
+    command = ['who']
     try:
-        cmd_p1 = subprocess.Popen(command_p1, stdout=subprocess.PIPE)
-        cmd_p2 = subprocess.Popen(command_p2, stdin=cmd_p1.stdout, stdout=subprocess.PIPE)
-        cmd_p1.stdout.close()
-        output, err = cmd_p2.communicate()
-        total_memory = subprocess.run(command_p3, capture_output=True, text=True, check=True)
-        # convert to KB
-        mem_usage = int(output.decode('utf-8').split()[1].replace('G', '')) * 1024
-        mem_system = int(total_memory.stdout.split()[1]) / (1024 * 1024)
+        output = subprocess.run(command,  capture_output=True, text=True, check=True)
+        data = output.stdout.strip().split('\n')
     except Exception as err:
         print(f'Unknown error: {err}')
         sys.exit(3)
 
-    usage_precent = round((mem_usage/mem_system) * 100)
+    if given_options.ssh:
+        cnt = 0
+        user_list = []
 
-    if usage_precent > critical:
-        print(f'CRITICAL - {__host__} server memory usage is {usage_precent}% |' +
-              f'memory={usage_precent};;{critical};')
+        for line in data:
+            if len(line.split()) == 5:
+                user_list.append(line.split()[0])
+                cnt += 1
+
+        if cnt <= int(given_options.ssh):
+            print(f'OK - {__host__} ssh logged count is {cnt} within given count check {given_options.ssh}, users: {','.join(user_list)}')
+            sys.exit(0)
+        print(f'CRITICAL - {__host__} ssh logged count is {cnt} above the given count check {given_options.ssh}, users: {','.join(user_list)}')
         sys.exit(2)
-    else:
-        print(f'OK - {__host__} server memory usage is {usage_precent}% |' +
-              f'offset={usage_precent};;{critical};')
-        sys.exit(0)
+
+    # user was given since these are the only 2 options
+    cnt = 0
+
+    for line in data:
+        if line.split()[0] == given_options.user and line.split()[1] == 'console':
+            cnt += 1
+
+        if cnt > 0:
+            print(f'OK - {__host__} user {given_options.user} is logged via console')
+            sys.exit(0)
+        print(f'CRITICAL - {__host__} user {given_options.user} is not logged via console')
+        sys.exit(2)
 
 if __name__ == "__main__":
     # Install signal/interrupts handler, we capture only SIGHUP, SIGINT and TERM
@@ -116,9 +130,12 @@ if __name__ == "__main__":
 
     parser.add_argument('-v', '--version', action = 'version', version = __info__)
 
-    parser.add_argument('-c', '--critical', action = 'store', dest = 'critical',
-          default = DEFAULT_CRITICAL, help = _HELP_CRITICAL)
+    group = parser.add_mutually_exclusive_group(required=True)
+
+    group.add_argument('-s', '--ssh', action = 'store', dest = 'ssh', help = _HELP_SSH)
+
+    group.add_argument('-u', '--user', action = 'store', dest = 'user', help = _HELP_USER)
 
     options = parser.parse_args()
-    memory_check(float(options.critical))
+    process_check(options)
 #{%- endraw %}

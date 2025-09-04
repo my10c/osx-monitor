@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+"""A python """
+# BSD 3-Clause License
+#
+# Copyright (c) 2012, © Badassops LLC / Luc Suryo
+# All rights reserved.
+#
+#*
+#* File        :   check-process-osx
+#*
+#* Description    :   script to check  if the given process is running, optional with given user and command argument on an OSX system, use for monitoring
+#*
+#* Author    :    Luc Suryo <luc@badassops.com>
+#*
+#* Version    :    0.4
+#*
+#* Date        :    Sep 3, 2025
+#*
+#* History    :
+#*        Date:          Author:        Info:
+#*        Aug 17, 2012   LIS        First Release
+#*        Dec 20, 2016   LIS        make sure it works with python3
+#*        Mar 7, 2019    LIS        added colors :)
+#*        Sep 3, 2025    LIS        text fixes
+#*{% raw %}
+
+import signal
+import sys
+import os
+import time
+import argparse
+import socket
+import subprocess
+import io
+
+from time import time, sleep, strftime
+
+__progname__ = os.path.basename(__file__)
+__author__      = 'Luc Suryo'
+__copyright__   = 'Copyright 2012 - ' + strftime('%Y') + ' © Badassops LLC'
+__license__     = 'License 3-Clause BSD, https://opensource.org/licenses/BSD-3-Clause ♥'
+__version__     = '0.4'
+__email__       = '<luc@badassops.com>'
+__info__        = f'{__version__}\n{__copyright__}\nLicense {__license__}\n\nWritten by {__author__} {__email__}\n'
+__description__ = 'Script to check if the given process is running, optional with given user and command argument on an OSX system'
+__usage_txt__   = '<--name process name> <--arg command arg> <--count process count> <--user username>'
+__host__        = socket.gethostname().split('.', 1)[0]
+
+# colors
+colorOFF    = '\033[0m'
+colorRed    = '\033[1;31m'
+colorGreen  = '\033[1;32m'
+colorYellow = '\033[1;33m'
+colorBlue   = '\033[1;34m'
+colorPurple = '\033[1;35m'
+
+# Defaults in seconds
+DEFAULT_COUNT = 0
+DEFAULT_USER  = 'all'
+
+# Help messages
+_HELP_PROCNAME = 'name of the process to be checked'
+_HELP_PROG_ARG = 'the argument given to the process to check'
+_HELP_COUNT    = f'running process count, default to {DEFAULT_COUNT}'
+_HELP_USER     = f'user owning the process, default to {DEFAULT_USER}'
+
+# use variable
+
+def signal_handler(signum, frame):
+    """Signal/interrupts handler
+        @param  signum  {int}       The interrupt ID according to signal.h.
+        @param  frame   {string}    Memory frame where the interrupted was called.
+    """
+    DEBUG = 0
+    print(f'\n\n{colorYellow}Process aborted due to received an interrupt: {signum} {colorOFF}')
+
+    if DEBUG == 1:
+        print (f'\n\n{colorYellow}Frame: {frame}{colorOFF}')
+    sys.exit(128 + signum)
+
+def process_check(given_options):
+    """
+        @param    given_options : dict with the below keys
+
+        @param    process_name  : name of the process
+        @param    process_arg   : arg givenn to the process
+        @param    process_user  : name of the user the process is running under
+        @param    process_count : process count of the same given process
+    """
+    output_buffer = []
+    lines_cnt = 0
+    user_cnt = 0
+    command_p1 = ['/bin/ps', '-o', 'user,command', '-A']
+    command_p2 = ['grep', f'{given_options.name} ']
+    # need to exclude the grep and script it self
+    grep_v = __progname__ + '|grep'
+    command_p3 = ['egrep', '-v', grep_v]
+    try:
+        cmd_p1 = subprocess.Popen(command_p1, stdout=subprocess.PIPE)
+        cmd_p2 = subprocess.Popen(command_p2, stdin=cmd_p1.stdout, stdout=subprocess.PIPE)
+        cmd_p3 = subprocess.Popen(command_p3, stdin=cmd_p2.stdout, stdout=subprocess.PIPE)
+        cmd_p1.stdout.close()
+        cmd_p2.stdout.close()
+        # build the stdout buffer
+
+        for line in cmd_p3.stdout:
+            # Store the lines in the buffer
+            output_buffer.append(line.strip())
+        _, err = cmd_p3.communicate()
+    except Exception as err:
+        print(f'Unknown error: {err}')
+        sys.exit(3)
+
+    if not output_buffer:
+        print(f'CRITICAL - {__host__} no process name {given_options.name} found | procs=0;;1:1')
+        sys.exit(2)
+
+    # get count of the process found
+    lines_cnt = len(output_buffer)
+
+    # check if the given process was found with the given arg
+    cnt = 1
+
+    if given_options.arg != 'none':
+        for line in output_buffer:
+            if given_options.arg in line.decode('utf-8'):
+                break
+            cnt +=1
+
+            if cnt > lines_cnt:
+                print(f'CRITICAL - {__host__} the process {given_options.name} found but not with the arg {given_options.arg} | ' +
+                      f'procs={0};;0:0')
+                sys.exit(0)
+
+    # check if count was requested
+
+    if given_options.count != 0:
+        if lines_cnt != int(given_options.count):
+            print(f'CRITICAL - {__host__} the process {given_options.name} count is {lines_cnt} instead of {given_options.count} | ' +
+                  f'procs={lines_cnt};;{given_options.count}:{given_options.count}')
+            sys.exit(2)
+
+    # check if user was requested
+
+    if given_options.user != 'all':
+        for line in output_buffer:
+            # if given_options.user in line.decode('utf-8'):
+
+            if line.decode('utf-8').startswith(given_options.user):
+                user_cnt = 1
+
+                break
+            print(f'CRITICAL - {__host__} no process {given_options.name} found running by the user {given_options.user}  | ' +
+                  f'procs={user_cnt};;1:1')
+            sys.exit(2)
+
+    print(f'OK - {__host__} process {given_options.name} found running by the user {given_options.user} and count {lines_cnt}  | ' +
+          'procs=1;;0:0')
+    sys.exit(0)
+
+if __name__ == "__main__":
+    # Install signal/interrupts handler, we capture only SIGHUP, SIGINT and TERM
+    signal.signal(signal.SIGHUP, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    # Process giving arguments
+    parser = argparse.ArgumentParser(usage = __usage_txt__, description = __description__,
+          formatter_class = argparse.RawDescriptionHelpFormatter, conflict_handler='resolve')
+
+    parser.add_argument('-v', '--version', action = 'version', version = __info__)
+
+    parser.add_argument('-n', '--name', action = 'store', dest = 'name',
+          help = _HELP_PROCNAME, required = True)
+
+    parser.add_argument('-a', '--arg', action = 'store', dest = 'arg',
+          default = 'none', help = _HELP_PROG_ARG)
+
+    parser.add_argument('-c', '--count', action = 'store', dest = 'count',
+          default = DEFAULT_COUNT, help = _HELP_COUNT)
+
+    parser.add_argument('-u', '--user', action = 'store', dest = 'user',
+          default = DEFAULT_USER, help = _HELP_USER)
+
+    options = parser.parse_args()
+    process_check(options)
+#{%- endraw %}
