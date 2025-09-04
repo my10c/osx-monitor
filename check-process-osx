@@ -154,8 +154,13 @@ def process_check(given_options):
                   f'procs={user_cnt};;1:1')
             sys.exit(2)
 
-    print(f'OK - {__host__} process {given_options.name} found running by the user {given_options.user} and count {lines_cnt}  | ' +
-          'procs=1;;0:0')
+
+    if given_options.arg == 'none':
+        print(f'OK - {__host__} process {given_options.name} found running by the user {given_options.user} and count {lines_cnt}  | ' +
+              'procs=1;;0:0')
+    else:
+        print(f'OK - {__host__} process {given_options.name} found running by the user {given_options.user} and arg {given_options.arg}' +
+              f' and count {lines_cnt} |  procs=1;;0:0')
     sys.exit(0)
 
 if __name__ == "__main__":
