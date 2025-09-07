@@ -12,9 +12,9 @@
 #*
 #* Author    :    Luc Suryo <luc@badassops.com>
 #*
-#* Version    :    0.4
+#* Version    :    0.5
 #*
-#* Date        :    Sep 17, 2025
+#* Date        :    Sep 6, 2025
 #*
 #* History    :
 #*        Date:          Author:        Info:
@@ -22,6 +22,7 @@
 #*        Dec 20, 2016   LIS        make sure it works with python3
 #*        Mar 7, 2019    LIS        added colors :)
 #*        Sep 3, 2025    LIS        text fixes
+#*        Sep 6, 2025    LIS        added the --server options
 #*{% raw %}
 
 import signal
@@ -38,7 +39,7 @@ __progname__ = os.path.basename(__file__)
 __author__      = 'Luc Suryo'
 __copyright__   = 'Copyright 2019 - ' + strftime('%Y') + ' © Badassops LLC'
 __license__     = 'License 3-Clause BSD, https://opensource.org/licenses/BSD-3-Clause ♥'
-__version__     = '0.4'
+__version__     = '0.5'
 __email__       = '<luc@badassops.com>'
 __info__        = f'{__version__}\n{__copyright__}\nLicense {__license__}\n\nWritten by {__author__} {__email__}\n'
 __description__ = 'nagios check script to check the time offset of a server running OSX'
@@ -54,13 +55,15 @@ colorBlue   = '\033[1;34m'
 colorPurple = '\033[1;35m'
 
 # Defaults in seconds
+DEFAULT_SERVER   = '1.us.pool.ntp.org'
 DEFAULT_CRITICAL = 0.01
 
 # Help messages
 _HELP_CRITICAL = f'critical uptime in seconds, default to {DEFAULT_CRITICAL}'
+_HELP_SERVER = f'server to be use,, default to {DEFAULT_SERVER}'
 
 # use variable
-command = ['sntp', 'pool.ntp.org']
+command = ['sntp']
 
 def signal_handler(signum, frame):
     """Signal/interrupts handler
@@ -111,6 +114,10 @@ if __name__ == "__main__":
     parser.add_argument('-c', '--critical', action = 'store', dest = 'critical',
           default = DEFAULT_CRITICAL, help = _HELP_CRITICAL)
 
+    parser.add_argument('-s', '--server', action = 'store', dest = 'server',
+          default = DEFAULT_SERVER, help = _HELP_SERVER)
+
     options = parser.parse_args()
+    command.append(options.server)
     offset_check(float(options.critical))
 #{%- endraw %}

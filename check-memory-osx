@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """A python """
+#
 # BSD 3-Clause License
 #
 # Copyright (c) 2012, © Badassops LLC / Luc Suryo
@@ -12,9 +13,9 @@
 #*
 #* Author    :    Luc Suryo <luc@badassops.com>
 #*
-#* Version    :    0.4
+#* Version    :    0.5
 #*
-#* Date        :    Sep 3, 2025
+#* Date        :    Sep 5, 2025
 #*
 #* History    :
 #*        Date:          Author:        Info:
@@ -22,7 +23,8 @@
 #*        Dec 20, 2016   LIS        make sure it works with python3
 #*        Mar 7, 2019    LIS        added colors :)
 #*        Sep 3, 2025    LIS        text fixes
-#*{% raw %}
+#*        Sep 5, 2025    LIS        fix to check for M and G
+#*
 
 import signal
 import sys
@@ -80,6 +82,7 @@ def memory_check(critical):
     """
         @param    critical : critical level
     """
+    mem_usage = 0
     try:
         cmd_p1 = subprocess.Popen(command_p1, stdout=subprocess.PIPE)
         cmd_p2 = subprocess.Popen(command_p2, stdin=cmd_p1.stdout, stdout=subprocess.PIPE)
@@ -87,7 +90,12 @@ def memory_check(critical):
         output, err = cmd_p2.communicate()
         total_memory = subprocess.run(command_p3, capture_output=True, text=True, check=True)
         # convert to KB
-        mem_usage = int(output.decode('utf-8').split()[1].replace('G', '')) * 1024
+
+        if 'G' in output.decode('utf-8').split()[1]:
+            mem_usage = int(output.decode('utf-8').split()[1].replace('M', '')) * 1024
+
+        if 'M' in output.decode('utf-8').split()[1]:
+            mem_usage = int(output.decode('utf-8').split()[1].replace('M', '')) * 1024 * 1024
         mem_system = int(total_memory.stdout.split()[1]) / (1024 * 1024)
     except Exception as err:
         print(f'Unknown error: {err}')
@@ -121,4 +129,4 @@ if __name__ == "__main__":
 
     options = parser.parse_args()
     memory_check(float(options.critical))
-#{%- endraw %}
+#

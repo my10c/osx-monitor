@@ -12,9 +12,9 @@
 #*
 #* Author    :    Luc Suryo <luc@badassops.com>
 #*
-#* Version    :    0.4
+#* Version    :    0.5
 #*
-#* Date        :    Sep 3, 2025
+#* Date        :    Sep 6, 2025
 #*
 #* History    :
 #*        Date:          Author:        Info:
@@ -22,6 +22,8 @@
 #*        Dec 20, 2016   LIS        make sure it works with python3
 #*        Mar 7, 2019    LIS        added colors :)
 #*        Sep 3, 2025    LIS        text fixes
+#*        Sep 6. 2025    LIS        check just need to find '(' in the who output
+#*                                  for ssh logged users
 #*{% raw %}
 
 import signal
@@ -39,10 +41,10 @@ __progname__ = os.path.basename(__file__)
 __author__      = 'Luc Suryo'
 __copyright__   = 'Copyright 2012 - ' + strftime('%Y') + ' © Badassops LLC'
 __license__     = 'License 3-Clause BSD, https://opensource.org/licenses/BSD-3-Clause ♥'
-__version__     = '0.4'
+__version__     = '0.5'
 __email__       = '<luc@badassops.com>'
 __info__        = f'{__version__}\n{__copyright__}\nLicense {__license__}\n\nWritten by {__author__} {__email__}\n'
-__description__ = 'Sscript to check if the given user is on console or how many are ssh into the mac'
+__description__ = 'Sscript to check if the given user is on console or how many users are logged via ssh'
 __usage_txt__   = '<--ssh ssh count> <--user username>'
 __host__        = socket.gethostname().split('.', 1)[0]
 
@@ -60,8 +62,6 @@ DEFAULT_COUNT = 0
 # Help messages
 _HELP_SSH    = f'user logged via ssh count, default to {DEFAULT_COUNT}'
 _HELP_USER   = 'username to be checked if logged via console'
-
-# use variable
 
 def signal_handler(signum, frame):
     """Signal/interrupts handler
@@ -95,7 +95,10 @@ def process_check(given_options):
         user_list = []
 
         for line in data:
-            if len(line.split()) >= 5:
+            # implices there was a (
+
+            if ')' in line:
+                print(f'({line.split()[0]})')
                 user_list.append(line.split()[0])
                 cnt += 1
 
